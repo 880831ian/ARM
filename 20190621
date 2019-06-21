@@ -1,0 +1,382 @@
+/**********************************************************************
+File Name:	Bsp.C
+Function 	:	Board Support Library
+Version 	:  	V1.1 
+Date		: 	2012/07/07
+
+***********************************************************************/
+#include  "config.h" //²ÕºA¤Î¼È¦s¾¹©w¸q
+/************************************************************************
+*¦WºÙ:Delay_ms
+*¥\¯à:©µ®É¥H1mS¬°³æ¦ì
+*************************************************************************/
+void Delay_ms(uint16 tick) 
+{      
+   SysTick->LOAD = SystemFrequency * 0.001 - 1; // ³]©wSysTickªºreloa®É¶¡¬°ms¬°³æ¦ì 
+   SysTick->VAL  = 0x00;        			    // ¸ü¤JSysTick­p¼Æ¼Æ­È 
+   SysTick->CTRL = (0x01<<0) | (0x1<<2); // ­P¯àSysTick Timer¤Î¿ï¾Ü¥Ñ¤º³¡®É¯ß­p®É
+  
+   while(tick--)   //©µ®É¥H1mS¬°³æ¦ì
+     while(!(SysTick-> CTRL & (0x1<<16)));//µ¥«ÝSystem Tick¤U¼Æ¨ì0
+}
+/************************************************************************
+*¦WºÙ:Delay_10us
+*¥\¯à:©µ®É¥H10uS¬°³æ¦ì
+*************************************************************************/
+void Delay_10us (uint16 tick) 
+{      
+   SysTick->LOAD = SystemFrequency * 0.00001 - 1 ;  // ³]©wSysTickªºreloa®É¶¡¬°10us¬°³æ¦ì 
+   SysTick->VAL  = 0x00;        			    // ¸ü¤JSysTick­p¼Æ¼Æ­È 
+   SysTick->CTRL =  (0x01<<0) | (0x1<<2); // ­P¯àSysTick Timer¤Î¿ï¾Ü¥Ñ¤º³¡®É¯ß­p®É
+  
+   while(tick--)  //©µ®É¥H10uS¬°³æ¦ì
+     while(!(SysTick-> CTRL &  (0x1<<16)));//µ¥«ÝSystem Tick¤U¼Æ¨ì0
+}
+
+  /************************************************************
+ * ¨ç¦¡¦W	¡FF_LED_Init()
+ * ¥\¯à		¡G ªì©l¤ÆLED I/o DIR
+*************************************************************/
+void F_LED_Init(void)
+{
+	// ³]©wLED ¬ÛÃö¸}¦ìªºIO Configuration Register		
+	LPC_IOCON -> R_PIO1_0  |= 0x001;	 // ±N R_PIO1_0 ¸}¦ì¥\¯à³]©w¬°GPIO
+	LPC_IOCON -> R_PIO1_1  |= 0x001;	 // ±N R_PIO1_1 ¸}¦ì¥\¯à³]©w¬°GPIO
+	LPC_IOCON -> R_PIO1_2  |= 0x001;	 // ±N R_PIO1_2 ¸}¦ì¥\¯à³]©w¬°GPIO
+	LPC_IOCON -> PIO1_4  &= ~(0x007);	 // ±N PIO1_4   ¸}¦ì¥\¯à³]©w¬°GPIO
+
+    // ³]©w LED ¬ÛÃö¸}¦ìªºGPIO¤è¦V	   1¬°¿é¥X  0¬°¿é¤J	  	
+	LPC_GPIO1-> DIR |=  0x17;
+	LPC_GPIO1-> DATA &= ~0x017;
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡F  F_LED_Blink()
+ * ¥\¯à		¡GÃö³¬ LED 
+ * 			 val: ªí±±¨î²Ä´X­ÓLEDÃö³¬ 
+*************************************************************/
+void F_LED_Blink(uint8 val)
+{
+	switch(val)
+	{
+		case 0:
+			LPC_GPIO1-> DATA ^=  0x001;
+			break;
+		case 1:
+			LPC_GPIO1-> DATA ^=  0x002;
+			break;
+		case 2:
+			LPC_GPIO1-> DATA ^=  0x004;
+			break;
+		case 3:
+			LPC_GPIO1-> DATA ^=  0x010;
+			break;
+		default:
+			break;
+	}
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡F  F_LED_ON()
+ * ¥\¯à		¡G ¶}±Ò LED 
+ * 			 val: ªí±±¨î²Ä´X­ÓLED ¶}±Ò  0-3
+*************************************************************/
+void F_LED_ON(uint8 val)
+{
+	switch(val)
+	{
+		case 0:
+			LPC_GPIO1-> DATA |=  0x001;
+			break;
+		case 1:
+			LPC_GPIO1-> DATA |=  0x002;
+			break;
+		case 2:
+			LPC_GPIO1-> DATA |=  0x004;
+			break;
+		case 3:
+			LPC_GPIO1-> DATA |=  0x010;
+			break;
+		default:
+			break;
+	}
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡F  F_LED_OFF()
+ * ¥\¯à		¡GÃö³¬ LED 
+ * 			 val: ªí±±¨î²Ä´X­ÓLEDÃö³¬ 
+*************************************************************/
+void F_LED_OFF(uint8 val)
+{
+	switch(val)
+	{
+		case 0:
+			LPC_GPIO1-> DATA &= ~0x001;
+			break;
+		case 1:
+			LPC_GPIO1-> DATA &= ~0x002;
+			break;
+		case 2:
+			LPC_GPIO1-> DATA &= ~0x004;
+			break;
+		case 3:
+			LPC_GPIO1-> DATA &= ~0x010;
+			break;
+		default:
+			break;
+	}
+}
+
+
+
+/************************************************************
+ * ¨ç¦¡¦W	¡FF_I2C_Init()
+ * ¥\¯à		¡Gªì¨Ï¤Æ I2C 
+ *			  ¶}±Ò¨Ã³]©wI2C ¼Ò¦¡¡B³t«×
+*************************************************************/	 
+void F_I2C_Init() 
+{
+	// ³nÅé­«¸mI2C
+  LPC_SYSCON->PRESETCTRL |= (0x1<<1);
+
+  // ­P¯à I2C ®É¯ß
+  LPC_SYSCON->SYSAHBCLKCTRL |= (1<<5);
+  // ³]©w I2C ±µ¸}
+  //LPC_IOCON->PIO0_4 &= ~0x3F;	/*  I2C I/O config */
+  LPC_IOCON->PIO0_4 = 0x01;		/* I2C SCL Standard mode/ Fast-mode I2C.*/
+  //LPC_IOCON->PIO0_5 &= ~0x3F;	
+  LPC_IOCON->PIO0_5 = 0x01;		/* I2C SDA Standard mode/ Fast-mode I2C.*/
+
+
+  /*--- ­Y³]©wFAST_MODE_PLUS¼Ò¦¡ ­«³]I2C IOCONFIG ---*/
+#if FAST_MODE_PLUS
+  LPC_IOCON->PIO0_4 |= (0x2<<8);
+  LPC_IOCON->PIO0_5 |= (0x2<<8);
+  LPC_I2C->SCLL   = I2SCLL_HS_SCLL;	 /* Fast Plus I2C SCL Duty Cycle Low Reg */
+  LPC_I2C->SCLH   = I2SCLH_HS_SCLH;	 /* Fast Plus I2C SCL Duty Cycle High Reg */
+#else
+  LPC_I2C->SCLL   = I2SCLL_SCLL;	/* I2C SCL Duty Cycle Low Reg */
+  LPC_I2C->SCLH   = I2SCLH_SCLH;	/* I2C SCL Duty Cycle High Reg */
+#endif
+
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡FF_I2C_Start()
+ * ¥\¯à		¡G³]©wI2C ªº°_©lºX¼Ð   I2CONSET_STA 
+*************************************************************/	
+void F_I2C_Start( void )
+{
+ 
+  LPC_I2C->CONCLR = 0xFF;	// ²M°£I2C ªººX¼Ð
+
+  /* ­P¯à I2C ¤¶­± ¤Î ³]©w start flag */
+  LPC_I2C->CONSET = (I2CONSET_I2EN|I2CONSET_STA);	/* Set Start flag */
+
+  while((LPC_I2C->CONSET & I2CONSET_SI)==0);	// µ¥«ÝI2Cµo¥X¤¤Â_ºX¼Ð		
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡GF_I2C_Stop(void)
+ * ¥\¯à		¡G³]©wI2C ªºµ²§ôºX¼Ð   I2CONSET_STO 
+*************************************************************/	
+void F_I2C_Stop( void )
+{
+  LPC_I2C->CONSET = I2CONSET_STO;      /* Set Stop flag */ 
+  LPC_I2C->CONCLR = I2CONCLR_SIC;  /* Clear SI flag */ 
+            
+  /*--- Wait for STOP detected ---*/
+  while( LPC_I2C->CONSET & I2CONSET_STO );
+}
+
+
+/************************************************************
+ * ¨ç¦¡¦W	¡GF_I2C_SendByte(uint8 data)
+ * ¥\¯à		¡G¼g¤J¸ê®Æ¦Ü I2C DATA ¼È¦s¾¹¨Ãµ¥«Ý¶Ç°e§¹¦¨ 
+*************************************************************/	
+void F_I2C_SendByte( uint8 data )
+{
+  LPC_I2C->DAT = data;			       // SDA°e¥X¸ê®Æ
+  LPC_I2C->CONCLR =I2CONSET_STA | I2CONSET_SI;	       // ²M°£STA¤ÎSIºX¼Ð
+
+  while((LPC_I2C->CONSET & I2CONSET_SI)==0); // µ¥«ÝI2C¤¤Â_ºX¼Ð
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡GF_I2C_RcvByte(void)
+ * ¥\¯à		¡G 
+*************************************************************/	
+uint8 F_I2C_RcvByte(void) 
+{
+	LPC_I2C->CONCLR=I2CONCLR_SIC |  I2CONCLR_AAC;	      // ²M°£SI¤ÎAAºX¼Ð
+    while((LPC_I2C->CONSET & (0x1<<3))==0); // µ¥«Ý°±¤îºX¼Ð
+	return(LPC_I2C->DAT);			  // SDA±µ¦¬¸ê®Æ
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡F F_SENENSEG_Init(int val)
+ * ¥\¯à 	¡G ¤C¬qÅã¥Ü¾¹IOªì¨Ï¤Æ
+*************************************************************/
+void F_SENENSEG_Init(void)
+{
+	// DATA LINE
+	LPC_GPIO1-> DIR |=	0xF00;
+	LPC_GPIO1-> DATA &=  ~0xF00;
+	
+	// SCAN LINE
+	LPC_GPIO3-> DIR |=	0x034;
+	LPC_GPIO3-> DATA &= ~0x034;
+	
+}
+
+/************************************************************
+ * ¨ç¦¡¦W	¡F F_SENENSEG_DispVal(int val)
+ * ¥\¯à 	¡G ¼Æ­ÈÅã¥Ü©ó¤C¬qÅã¥Ü¾¹¤W
+*************************************************************/
+
+void F_SENENSEG_DispVal(int32 val)
+{
+	int j;
+	// ³]©w¤T¹ï¤K¸Ñ½Xªº±½´y½u¡A¤è¦V³]©w¬°¿é¥X(PIO3 (2,4,5))
+	LPC_GPIO3-> DIR  |=  0x034;
+	// ¸ê®Æ½u³]©w
+	// ³]©w¸ê®Æ½u PIO1 (8,9,10,11)¤è¦V¬°¿é¤J
+	LPC_GPIO1-> DIR  |= 0xF00;
+	Delay_10us(8);
+	LPC_GPIO3-> DATA = 0x000;
+
+	j = val;
+	LPC_GPIO1-> DATA = ((j / 1000) << 8);
+	LPC_GPIO3-> DATA = 0x020;
+	Delay_10us(10);
+	LPC_GPIO3-> DATA = 0x000;
+
+	j = j % 1000;
+	LPC_GPIO1-> DATA = ((j / 100) << 8);
+	LPC_GPIO3-> DATA = 0x024;
+	Delay_10us(10);
+	LPC_GPIO3-> DATA = 0x000;
+
+	j = j % 100;
+	LPC_GPIO1-> DATA = ((j / 10) << 8);
+	LPC_GPIO3-> DATA = 0x030;
+	Delay_10us(10);
+	LPC_GPIO3-> DATA = 0x000;
+
+	j = j % 10;
+	LPC_GPIO1-> DATA = ((j / 1) << 8);
+	LPC_GPIO3-> DATA = 0x034;
+	Delay_10us(10);
+	LPC_GPIO3-> DATA = 0x000;
+	Delay_10us(10);
+	LPC_GPIO1-> DIR  &= ~0xF00;
+}
+
+/******************************************************************
+ **	ADC_Init (void)
+ **	ªì©l¤ÆADC
+******************************************************************/
+void F_ADC_Init( uint32 ADC_Clk )
+{
+
+  // 0=¸T¯à¶i¤J¹q·½¤U­°®É¡A®É¯ß°e¤JADC 
+  LPC_SYSCON->PDRUNCFG &= ~(0x1<<4);
+
+  /* Enable AHB clock to the ADC. */
+  LPC_SYSCON->SYSAHBCLKCTRL |= (1<<13);
+
+  LPC_ADC->CR = ((((SystemFrequency/LPC_SYSCON->SYSAHBCLKDIV)/ADC_Clk-1)<<8)|
+  (0 << 16) | 		// BURST=0,¥Ñ³nÅé±±¨î±Ò°Ê 
+  (0 << 17) |  		// CLKS =0,11 clocks/10 bits <--Burst ¼Ò¦¡¤U¦³¥Î
+  (0 << 24) |  		// START=0,A/DÂà´«°±¤î
+  (0 << 27));		// EDGE =0,CAP/MAT¸}«H¸¹­t½tÄ²Âà´«
+
+  return;
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡GF_UART_Init(uint32_t baudrate)
+ * ¥\¯à		¡GUART ªì¨Ï¤Æ¤ÎÀj²v³]©w
+ * Note: UART ¸}¦ì¥²¶·¦bUART®É¯ß­P¯à«e³]©w§¹¦¨ (LPC111x/101/201/301)
+ * 		 UART/SPI/WDT ¨ã¦³¿W¥ßªº®É¯ß°£ÀW¾¹
+*************************************************************/
+void  F_UART_Init(uint32_t baudrate)
+{
+  uint32_t Fdiv;
+  uint32_t regVal;
+
+  
+  NVIC_DisableIRQ(UART_IRQn);
+
+  /* UART I/O ¼È¦s¾¹ ³]©w 	  */
+  LPC_IOCON->PIO1_6 &= ~0x07;    
+  LPC_IOCON->PIO1_6 |= 0x01;     // UART RXD FUNC¥\¯à³]©w 
+  LPC_IOCON->PIO1_7 &= ~0x07;	
+  LPC_IOCON->PIO1_7 |= 0x01;     // UART TXD FUNC¥\¯à³]©w
+
+  /* ¶}±ÒUART ®É¯ß¤Î³]©w¶Ç¿é®æ¦¡ */
+  LPC_SYSCON->SYSAHBCLKCTRL |= (1<<12);	   //  °Ñ¦Ò	SYSAHBCLKCTRL,¼È¦s¾¹Bit 12
+  // UARTCLKDIV UART °£ÀW¾¹³]©w
+  LPC_SYSCON->UARTCLKDIV = 0x1;     // divided by 1 
+  // ³]©w UART ¶Ç¿é®æ¦¡
+  // U0LCR[1:0]	- 0x3 ªí8-bits
+  // U0LCR[2]	- 0x0 ªí1 stop bit
+  // U0LCR[3]	- 0x0 ªíno Parity
+  // U0LCR[7]¬°DLAB(Divisor Latch AccessBit) =1, Write Only
+  LPC_UART->LCR = 0x83;             /* 8 bits, no Parity, 1 Stop bit */
+
+  /* ­pºâ Baud Rate ©Ò»Ýªº°Ñ¼Æ*/
+  regVal = LPC_SYSCON->UARTCLKDIV;										
+  Fdiv = (((SystemFrequency*LPC_SYSCON->SYSAHBCLKDIV)/regVal)/16)/baudrate ;	/*baud rate */
+  LPC_UART->DLM = Fdiv / 256;							
+  LPC_UART->DLL = Fdiv % 256;
+  // U0LCR[7]¬°DLAB(Divisor Latch AccessBit) =0, Read Only
+  LPC_UART->LCR = 0x03;		/* DLAB = 0 */
+
+
+  LPC_UART->FCR = 0x07;		/* Enable and reset TX and RX FIFO. */
+
+  /* Read to clear the line status. */
+  regVal = LPC_UART->LSR;
+
+  /* Ensure a clean start, no data in either TX or RX FIFO. */
+// CodeRed - added parentheses around comparison in operand of &
+  while (( LPC_UART->LSR & (LSR_THRE|LSR_TEMT)) != (LSR_THRE|LSR_TEMT) );
+  while ( LPC_UART->LSR & LSR_RDR )
+  {
+	regVal = LPC_UART->RBR;	/* Dump data from RX FIFO */
+  }
+  /* Enable the UART Interrupt */
+  NVIC_EnableIRQ(UART_IRQn);
+ 
+  return;
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡GF_UART_SendByte(uint8_t Data)
+ * ¥\¯à		¡G¶Ç°e¤@­Óbyte¸ê®Æ
+*************************************************************/
+// ¶Ç°e¤@­Óbyte¸ê®Æ
+void F_UART_SendByte(char Data)
+{
+  
+  	// µ¥«ÝTX FIFO¬°ªÅ
+  	while ( !(LPC_UART->LSR & LSR_THRE) );
+	// ¼g¤J¦r¤¸¦ÜTX FIFO
+  	LPC_UART->THR = Data;
+  	return;
+}
+/************************************************************
+ * ¨ç¦¡¦W	¡GF_UART_SendStr(uint8_t *BufferPtr, uint32_t Length)
+ * ¥\¯à		¡G¶Ç°e¤@­Ó¦r¦ê¸ê®Æ
+*************************************************************/
+void F_UART_SendStr(char *BufferPtr, uint32_t Length)
+{
+  
+  // ­Y³Ñ¾l¦r¤¸¼Æ¤£¬°0¡A«h¶Ç°e
+  while ( Length != 0 )
+  {
+  	  // µ¥«Ý¶Ç°eFIFO¬°ªÅ
+	  while ( !(LPC_UART->LSR & LSR_THRE) );
+	  // ¼g¤J¦r¤¸¦ÜTX FIFO
+	  LPC_UART->THR = *BufferPtr;
+	  // «ü¼Ð«ü¦V¤U¤@­Ó¦r¤¸
+      BufferPtr++;
+	  // ³Ñ¾l¦r¤¸¼Æ´î1
+      Length--;
+  }
+  return;
+}
+
