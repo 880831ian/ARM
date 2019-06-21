@@ -1,382 +1,406 @@
-/**********************************************************************
-File Name:	Bsp.C
-Function 	:	Board Support Library
-Version 	:  	V1.1 
-Date		: 	2012/07/07
-
-***********************************************************************/
+/***********************************************************
+ * @file     LAB3-3.c
+ * @brief    Keyboard + Seven Segment LAB
+ *           for the NXP LPC11xx/LPC11Cxx Device Series
+ * @version  V1.10
+ * @date     2012
+***********************************************************
+ *  KEYBOARD ¿é¤J ½m²ß
+ * ¥»¶}µoªO¤¤ªº¤C¬qÅã¥Ü¾¹©MKEYBOARD³¡¤À¹q¸ô³¡¤À¬°­«Å|À³¥Î
+ * Keyboard ªºÀ³¥Î¬O³z¹L¦æ»P¦Cªº±½´y¨Ó§PÂ_¥Ø«e«ö¤Uªº«ö¶s¬°¦ó
+ * ¥»½d¨Ò¬°³z¹L²¾¦ì¤è¦¡¨Ó¶i¦æ§PÂ_¡A
+ * ÅªªÌ¥i¦b«á­±³¹¸`¤¤µo²{¨ä¥¦Áä½L±½´yªº¤è¦¡¡A
+ * ©Î¥i¬ã¨s¬O§_¦³¨ä¥¦§ó§Ö§ó¦nªº¤è¦¡
+ * 
+ * ¿ï¾Üªº±µ¸}¬O³z¹L 
+ *	PIO3_2		--> SCAN 0
+ *	PIO3_4		--> SCAN 1
+ *  PIO3_5		--> SCAN 2
+ *  PIO1_11		--> DATA 3	(MSB)
+ *  PIO1_10		--> DATA 2
+ *  PIO1_9			--> DATA 1
+ *  PIO1_8			--> DATA 0  (LSB)
+***********************************************************/   
 #include  "config.h" //²ÕºA¤Î¼È¦s¾¹©w¸q
-/************************************************************************
-*¦WºÙ:Delay_ms
-*¥\¯à:©µ®É¥H1mS¬°³æ¦ì
-*************************************************************************/
-void Delay_ms(uint16 tick) 
-{      
-   SysTick->LOAD = SystemFrequency * 0.001 - 1; // ³]©wSysTickªºreloa®É¶¡¬°ms¬°³æ¦ì 
-   SysTick->VAL  = 0x00;        			    // ¸ü¤JSysTick­p¼Æ¼Æ­È 
-   SysTick->CTRL = (0x01<<0) | (0x1<<2); // ­P¯àSysTick Timer¤Î¿ï¾Ü¥Ñ¤º³¡®É¯ß­p®É
+#include  "stdio.h"
+#include  "stdlib.h"
+#include  "time.h"
+
+
+#define D_SEL_7SEG4	0x020 	// ¤C¬qÅã¥Ü¾¹¤d¦ì¼Æ	¦ì¸m½s½X
+#define D_SEL_7SEG3	0x024	// ¤C¬qÅã¥Ü¾¹¦Ê¦ì¼Æ	¦ì¸m½s½X
+#define D_SEL_7SEG2	0x030   // ¤C¬qÅã¥Ü¾¹¤Q¦ì¼Æ	¦ì¸m½s½X
+#define D_SEL_7SEG1	0x034	// ¤C¬qÅã¥Ü¾¹­Ó¦ì¼Æ	¦ì¸m½s½X
+
+#define D_SEL_KC1	0x000
+#define D_SEL_KC2	0x004
+#define D_SEL_KC3	0x010
+#define D_SEL_KC4	0x014
+
+#define D_ST7920_E		(0x0010)	// P1
+#define D_ST7920_RW		(0x0020)	// P1
+#define D_ST7920_RES	(0x0001)	// P2
+#define D_ST7920_RS		(0x0002)	// P0
+
+
+#define D_ST7920_DB0	(1<<2)
+#define D_ST7920_DB1	(1<<3)
+#define D_ST7920_DB2	(1<<4)
+#define D_ST7920_DB3	(1<<5)
+#define D_ST7920_DB4	(1<<6)
+#define D_ST7920_DB5	(1<<7)
+#define D_ST7920_DB6	(1<<8)
+#define D_ST7920_DB7	(1<<9)
+
+#define D_ST7920_DB		0x03FC
+
+#define D_ST7920_RES_EN	LPC_GPIO2->DATA &= ~D_ST7920_RES;
+#define D_ST7920_RES_DN	LPC_GPIO2->DATA |= D_ST7920_RES;
+
+#define D_ST7920_E_DN	LPC_GPIO1->DATA &= ~D_ST7920_E;
+#define D_ST7920_E_EN	LPC_GPIO1->DATA |= D_ST7920_E;
+
+#define D_ST7920_RW_WR	LPC_GPIO1->DATA &= ~D_ST7920_RW;
+#define D_ST7920_RW_RD	LPC_GPIO1->DATA |= D_ST7920_RW;
+
+#define D_ST7920_RS_IR	LPC_GPIO0->DATA &= ~D_ST7920_RS;
+#define D_ST7920_RS_DR	LPC_GPIO0->DATA |= D_ST7920_RS;
+
+void F_ST7920_IO_Init(void);
+void F_ST7920_Init(void);
+void F_ST7920_IR_WR(unsigned int);
+void F_ST7920_DR_WR(unsigned int);
+void F_ST7920_SetXY(uint8, uint8);
+
+unsigned int G_FG_PB, G_DATA_PB;
+void F_ST7920_SetXY(uint8 x, uint8 y)
+	{
+	uint8 tmp = 0x00;
+	switch(y)
+	{
+	case 0:
+		tmp = 0x80;
+		break;
+	case 1:
+		tmp = 0x90;
+		break;
+	default:
+		tmp = 0x80;
+		break;
+	}
+
+	F_ST7920_IR_WR(tmp|x);
+	return;
+}
+
+int main (void)
+{	 
+	
+	unsigned int i, j;
+	int a, b, c, d, k;
+	int num;
+	char val[1];
+	static const char tab[]="²£¥ÍJ ­ÓÅçÃÒ½X!";
+	static const char tab1[]="Âê©w½ÐPB3_0";
+ 	uint8 v;
+	
+
+ 	SystemInit();	 //¨t²Îªì©l¤Æ
+    F_ST7920_Init();
+	Delay_ms(50);
+
+    F_ST7920_SetXY(0,0);
+	for(v = 0;v<sizeof(tab);v++)
+		F_ST7920_DR_WR(tab[v]);
+
+	 F_ST7920_SetXY(0,1);
+	for(v = 0;v<sizeof(tab1);v++)
+		F_ST7920_DR_WR(tab1[v]);
+	
+
+
   
-   while(tick--)   //©µ®É¥H1mS¬°³æ¦ì
-     while(!(SysTick-> CTRL & (0x1<<16)));//µ¥«ÝSystem Tick¤U¼Æ¨ì0
-}
-/************************************************************************
-*¦WºÙ:Delay_10us
-*¥\¯à:©µ®É¥H10uS¬°³æ¦ì
-*************************************************************************/
-void Delay_10us (uint16 tick) 
-{      
-   SysTick->LOAD = SystemFrequency * 0.00001 - 1 ;  // ³]©wSysTickªºreloa®É¶¡¬°10us¬°³æ¦ì 
-   SysTick->VAL  = 0x00;        			    // ¸ü¤JSysTick­p¼Æ¼Æ­È 
-   SysTick->CTRL =  (0x01<<0) | (0x1<<2); // ­P¯àSysTick Timer¤Î¿ï¾Ü¥Ñ¤º³¡®É¯ß­p®É
-  
-   while(tick--)  //©µ®É¥H10uS¬°³æ¦ì
-     while(!(SysTick-> CTRL &  (0x1<<16)));//µ¥«ÝSystem Tick¤U¼Æ¨ì0
-}
-
-  /************************************************************
- * ¨ç¦¡¦W	¡FF_LED_Init()
- * ¥\¯à		¡G ªì©l¤ÆLED I/o DIR
-*************************************************************/
-void F_LED_Init(void)
-{
-	// ³]©wLED ¬ÛÃö¸}¦ìªºIO Configuration Register		
-	LPC_IOCON -> R_PIO1_0  |= 0x001;	 // ±N R_PIO1_0 ¸}¦ì¥\¯à³]©w¬°GPIO
-	LPC_IOCON -> R_PIO1_1  |= 0x001;	 // ±N R_PIO1_1 ¸}¦ì¥\¯à³]©w¬°GPIO
-	LPC_IOCON -> R_PIO1_2  |= 0x001;	 // ±N R_PIO1_2 ¸}¦ì¥\¯à³]©w¬°GPIO
-	LPC_IOCON -> PIO1_4  &= ~(0x007);	 // ±N PIO1_4   ¸}¦ì¥\¯à³]©w¬°GPIO
-
-    // ³]©w LED ¬ÛÃö¸}¦ìªºGPIO¤è¦V	   1¬°¿é¥X  0¬°¿é¤J	  	
-	LPC_GPIO1-> DIR |=  0x17;
-	LPC_GPIO1-> DATA &= ~0x017;
-}
-/************************************************************
- * ¨ç¦¡¦W	¡F  F_LED_Blink()
- * ¥\¯à		¡GÃö³¬ LED 
- * 			 val: ªí±±¨î²Ä´X­ÓLEDÃö³¬ 
-*************************************************************/
-void F_LED_Blink(uint8 val)
-{
-	switch(val)
-	{
-		case 0:
-			LPC_GPIO1-> DATA ^=  0x001;
-			break;
-		case 1:
-			LPC_GPIO1-> DATA ^=  0x002;
-			break;
-		case 2:
-			LPC_GPIO1-> DATA ^=  0x004;
-			break;
-		case 3:
-			LPC_GPIO1-> DATA ^=  0x010;
-			break;
-		default:
-			break;
-	}
-}
-/************************************************************
- * ¨ç¦¡¦W	¡F  F_LED_ON()
- * ¥\¯à		¡G ¶}±Ò LED 
- * 			 val: ªí±±¨î²Ä´X­ÓLED ¶}±Ò  0-3
-*************************************************************/
-void F_LED_ON(uint8 val)
-{
-	switch(val)
-	{
-		case 0:
-			LPC_GPIO1-> DATA |=  0x001;
-			break;
-		case 1:
-			LPC_GPIO1-> DATA |=  0x002;
-			break;
-		case 2:
-			LPC_GPIO1-> DATA |=  0x004;
-			break;
-		case 3:
-			LPC_GPIO1-> DATA |=  0x010;
-			break;
-		default:
-			break;
-	}
-}
-/************************************************************
- * ¨ç¦¡¦W	¡F  F_LED_OFF()
- * ¥\¯à		¡GÃö³¬ LED 
- * 			 val: ªí±±¨î²Ä´X­ÓLEDÃö³¬ 
-*************************************************************/
-void F_LED_OFF(uint8 val)
-{
-	switch(val)
-	{
-		case 0:
-			LPC_GPIO1-> DATA &= ~0x001;
-			break;
-		case 1:
-			LPC_GPIO1-> DATA &= ~0x002;
-			break;
-		case 2:
-			LPC_GPIO1-> DATA &= ~0x004;
-			break;
-		case 3:
-			LPC_GPIO1-> DATA &= ~0x010;
-			break;
-		default:
-			break;
-	}
-}
-
-
-
-/************************************************************
- * ¨ç¦¡¦W	¡FF_I2C_Init()
- * ¥\¯à		¡Gªì¨Ï¤Æ I2C 
- *			  ¶}±Ò¨Ã³]©wI2C ¼Ò¦¡¡B³t«×
-*************************************************************/	 
-void F_I2C_Init() 
-{
-	// ³nÅé­«¸mI2C
-  LPC_SYSCON->PRESETCTRL |= (0x1<<1);
-
-  // ­P¯à I2C ®É¯ß
-  LPC_SYSCON->SYSAHBCLKCTRL |= (1<<5);
-  // ³]©w I2C ±µ¸}
-  //LPC_IOCON->PIO0_4 &= ~0x3F;	/*  I2C I/O config */
-  LPC_IOCON->PIO0_4 = 0x01;		/* I2C SCL Standard mode/ Fast-mode I2C.*/
-  //LPC_IOCON->PIO0_5 &= ~0x3F;	
-  LPC_IOCON->PIO0_5 = 0x01;		/* I2C SDA Standard mode/ Fast-mode I2C.*/
-
-
-  /*--- ­Y³]©wFAST_MODE_PLUS¼Ò¦¡ ­«³]I2C IOCONFIG ---*/
-#if FAST_MODE_PLUS
-  LPC_IOCON->PIO0_4 |= (0x2<<8);
-  LPC_IOCON->PIO0_5 |= (0x2<<8);
-  LPC_I2C->SCLL   = I2SCLL_HS_SCLL;	 /* Fast Plus I2C SCL Duty Cycle Low Reg */
-  LPC_I2C->SCLH   = I2SCLH_HS_SCLH;	 /* Fast Plus I2C SCL Duty Cycle High Reg */
-#else
-  LPC_I2C->SCLL   = I2SCLL_SCLL;	/* I2C SCL Duty Cycle Low Reg */
-  LPC_I2C->SCLH   = I2SCLH_SCLH;	/* I2C SCL Duty Cycle High Reg */
-#endif
-
-}
-/************************************************************
- * ¨ç¦¡¦W	¡FF_I2C_Start()
- * ¥\¯à		¡G³]©wI2C ªº°_©lºX¼Ð   I2CONSET_STA 
-*************************************************************/	
-void F_I2C_Start( void )
-{
- 
-  LPC_I2C->CONCLR = 0xFF;	// ²M°£I2C ªººX¼Ð
-
-  /* ­P¯à I2C ¤¶­± ¤Î ³]©w start flag */
-  LPC_I2C->CONSET = (I2CONSET_I2EN|I2CONSET_STA);	/* Set Start flag */
-
-  while((LPC_I2C->CONSET & I2CONSET_SI)==0);	// µ¥«ÝI2Cµo¥X¤¤Â_ºX¼Ð		
-}
-/************************************************************
- * ¨ç¦¡¦W	¡GF_I2C_Stop(void)
- * ¥\¯à		¡G³]©wI2C ªºµ²§ôºX¼Ð   I2CONSET_STO 
-*************************************************************/	
-void F_I2C_Stop( void )
-{
-  LPC_I2C->CONSET = I2CONSET_STO;      /* Set Stop flag */ 
-  LPC_I2C->CONCLR = I2CONCLR_SIC;  /* Clear SI flag */ 
-            
-  /*--- Wait for STOP detected ---*/
-  while( LPC_I2C->CONSET & I2CONSET_STO );
-}
-
-
-/************************************************************
- * ¨ç¦¡¦W	¡GF_I2C_SendByte(uint8 data)
- * ¥\¯à		¡G¼g¤J¸ê®Æ¦Ü I2C DATA ¼È¦s¾¹¨Ãµ¥«Ý¶Ç°e§¹¦¨ 
-*************************************************************/	
-void F_I2C_SendByte( uint8 data )
-{
-  LPC_I2C->DAT = data;			       // SDA°e¥X¸ê®Æ
-  LPC_I2C->CONCLR =I2CONSET_STA | I2CONSET_SI;	       // ²M°£STA¤ÎSIºX¼Ð
-
-  while((LPC_I2C->CONSET & I2CONSET_SI)==0); // µ¥«ÝI2C¤¤Â_ºX¼Ð
-}
-/************************************************************
- * ¨ç¦¡¦W	¡GF_I2C_RcvByte(void)
- * ¥\¯à		¡G 
-*************************************************************/	
-uint8 F_I2C_RcvByte(void) 
-{
-	LPC_I2C->CONCLR=I2CONCLR_SIC |  I2CONCLR_AAC;	      // ²M°£SI¤ÎAAºX¼Ð
-    while((LPC_I2C->CONSET & (0x1<<3))==0); // µ¥«Ý°±¤îºX¼Ð
-	return(LPC_I2C->DAT);			  // SDA±µ¦¬¸ê®Æ
-}
-/************************************************************
- * ¨ç¦¡¦W	¡F F_SENENSEG_Init(int val)
- * ¥\¯à 	¡G ¤C¬qÅã¥Ü¾¹IOªì¨Ï¤Æ
-*************************************************************/
-void F_SENENSEG_Init(void)
-{
+	Delay_ms(400);
+	
 	// DATA LINE
-	LPC_GPIO1-> DIR |=	0xF00;
-	LPC_GPIO1-> DATA &=  ~0xF00;
-	
+	LPC_GPIO1-> DIR  |=  0xF00;
+	LPC_GPIO1-> DATA &= ~0xF00;
+
 	// SCAN LINE
-	LPC_GPIO3-> DIR |=	0x034;
-	LPC_GPIO3-> DATA &= ~0x034;
-	
-}
-
-/************************************************************
- * ¨ç¦¡¦W	¡F F_SENENSEG_DispVal(int val)
- * ¥\¯à 	¡G ¼Æ­ÈÅã¥Ü©ó¤C¬qÅã¥Ü¾¹¤W
-*************************************************************/
-
-void F_SENENSEG_DispVal(int32 val)
-{
-	int j;
-	// ³]©w¤T¹ï¤K¸Ñ½Xªº±½´y½u¡A¤è¦V³]©w¬°¿é¥X(PIO3 (2,4,5))
 	LPC_GPIO3-> DIR  |=  0x034;
-	// ¸ê®Æ½u³]©w
-	// ³]©w¸ê®Æ½u PIO1 (8,9,10,11)¤è¦V¬°¿é¤J
-	LPC_GPIO1-> DIR  |= 0xF00;
-	Delay_10us(8);
-	LPC_GPIO3-> DATA = 0x000;
+	LPC_GPIO3-> DATA &= ~0x034;
 
-	j = val;
-	LPC_GPIO1-> DATA = ((j / 1000) << 8);
-	LPC_GPIO3-> DATA = 0x020;
-	Delay_10us(10);
-	LPC_GPIO3-> DATA = 0x000;
+	//  ²M°£7¬qÅã¥Ü¾¹¤W¼Æ­È 
+	LPC_GPIO1-> DATA = (LPC_GPIO1-> DATA & 0x0FF) + (0x00<<8);
+	LPC_GPIO3-> DATA = D_SEL_7SEG4;
+	Delay_ms(10);
+	LPC_GPIO3-> DATA = D_SEL_7SEG3;
+	Delay_ms(10);
+	LPC_GPIO3-> DATA = D_SEL_7SEG2;
+	Delay_ms(10);
+	LPC_GPIO3-> DATA = D_SEL_7SEG1;
+	Delay_ms(10);
 
-	j = j % 1000;
-	LPC_GPIO1-> DATA = ((j / 100) << 8);
-	LPC_GPIO3-> DATA = 0x024;
-	Delay_10us(10);
-	LPC_GPIO3-> DATA = 0x000;
+	
+	LPC_GPIO3-> DATA = D_SEL_KC1;
+				   
+	G_FG_PB = 0x0000;
+	
+	while (1) 
+	{
+	// 1 ³]©w¸ê®Æ½u¤è¦V¬°¿é¤J¡A¨ÓÅª¨ú«öÁäª¬ºA
+		LPC_GPIO1-> DIR  &= ~0xF00;
+		
+		G_FG_PB = 0xFFFF0000;
 
-	j = j % 100;
-	LPC_GPIO1-> DATA = ((j / 10) << 8);
-	LPC_GPIO3-> DATA = 0x030;
-	Delay_10us(10);
-	LPC_GPIO3-> DATA = 0x000;
+	// 2  ¤À§O±½´yÁä½Lªº¥|¦æ¸ê®Æ
+		
+		// ³]©w±½´yÁä½Lªº²Ä¤@¦æ
+		LPC_GPIO3-> DATA = D_SEL_KC1;
+		Delay_ms(10);
+		// Åª¨ú¸ê®Æ½uªº¸ê®Æ¡A¨Ã©ñ¦ÜG_FG_PBÅÜ¼Æ§C¦ì¤¸²Õ¤¤§C¥|¦ì¤¸
+		G_FG_PB = G_FG_PB + ((LPC_GPIO1-> DATA & 0xF00) >> 8);
+		Delay_ms(10);
+		
+		// ³]©w±½´yÁä½Lªº²Ä¤G¦æ
+		LPC_GPIO3-> DATA = D_SEL_KC2;
+		Delay_ms(10);
+		// Åª¨ú¸ê®Æ½uªº¸ê®Æ¡A¨Ã©ñ¦ÜG_FG_PBÅÜ¼Æ§C¦ì¤¸²Õ¤¤°ª¥|¦ì¤¸
+		G_FG_PB = G_FG_PB + ((LPC_GPIO1-> DATA & 0xF00) >> 4);
+		Delay_ms(10);
+		// ³]©w±½´yÁä½Lªº²Ä¤T¦æ
+		LPC_GPIO3-> DATA = D_SEL_KC3;
+		Delay_ms(10);
+		// Åª¨ú¸ê®Æ½uªº¸ê®Æ¡A¨Ã©ñ¦ÜG_FG_PBÅÜ¼Æ§C°ª¤¸²Õ¤¤§C¥|¦ì¤¸
+		G_FG_PB = G_FG_PB + ((LPC_GPIO1-> DATA & 0xF00));
+		Delay_ms(10);
+		// ³]©w±½´yÁä½Lªº²Ä¥|¦æ
+		LPC_GPIO3-> DATA = D_SEL_KC4;
+		Delay_ms(10);
+		// Åª¨ú¸ê®Æ½uªº¸ê®Æ¡A¨Ã©ñ¦ÜG_FG_PBÅÜ¼Æ§C°ª¤¸²Õ¤¤°ª¥|¦ì¤¸
+		G_FG_PB = G_FG_PB + ((LPC_GPIO1-> DATA & 0xF00) << 4);
+		Delay_ms(10);
 
-	j = j % 10;
-	LPC_GPIO1-> DATA = ((j / 1) << 8);
-	LPC_GPIO3-> DATA = 0x034;
-	Delay_10us(10);
-	LPC_GPIO3-> DATA = 0x000;
-	Delay_10us(10);
-	LPC_GPIO1-> DIR  &= ~0xF00;
+		// ±N¨ú±o¸ê®Æ¤Ï¦V
+		G_FG_PB = ~G_FG_PB;
+
+
+		// 3 ³z¹L²¾¦ì¨Ó§PÂ_¬O¨º­Ó«öÁä«ö¤U
+		j = 0;
+
+		for(i = 0; i < 16; i++)
+		{			
+			if(G_FG_PB & 0x0001)
+				j = i + 1;
+			G_FG_PB = G_FG_PB >> 1;
+		} 
+		k = G_DATA_PB;
+		// 4 §ó·s¤C¬qÅã¥Ü¾¹¸ê®Æ
+		// ¬°Á×§K»~°Ê§@¡Aµ¥«Ý¨S¦³¿é¤J®É¤~¶i¦æ§ó·s¤C¬qÅã¥Ü¾¹
+		// ¨S¦³¿é¤J®É J = 0
+		if(G_DATA_PB == 13)
+		{
+			
+			a=(rand()%10);
+			b=(rand()%10);
+			c=(rand()%10);
+			d=(rand()%10);
+      LPC_GPIO1-> DIR  |=  0xF00;
+	
+				LPC_GPIO3-> DATA = 0x000;
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº¤d¦ì¼Æ
+				LPC_GPIO1-> DATA = (a << 8);
+				LPC_GPIO3-> DATA = 0x020;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+			
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº¦Ê¦ì¼Æ
+				k = k % 8;
+				LPC_GPIO1-> DATA = ((b) << 8);
+				LPC_GPIO3-> DATA = 0x024;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+	
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº¤Q¦ì¼Æ
+				k = k % 4;  			
+				LPC_GPIO1-> DATA = ((c) << 8);
+				LPC_GPIO3-> DATA = 0x030;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº­Ó¦ì¼Æ
+				k = k % 2;				
+				LPC_GPIO1-> DATA = ((d) << 8);
+				LPC_GPIO3-> DATA = 0x034;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+			
+   			G_DATA_PB = 0;
+		}
+		else if (G_DATA_PB == 14)
+		{
+			G_DATA_PB=num;
+			//static const char tab[]="¿é¤JJ ­ÓÅçÃÒ½X!";
+			//static const char tab1[]="Code:";
+			F_ST7920_SetXY(0,1);
+	  	F_ST7920_DR_WR('   ');
+
+				  
+			
+			
+		}
+		else if ((j==0) && (G_DATA_PB !=0) && (G_DATA_PB <=10) )
+		{
+		int p;
+		 val[0]=G_DATA_PB+47;
+		 F_ST7920_SetXY(p,1);
+	  	F_ST7920_DR_WR(val[0]);
+			p=p+1;
+			G_DATA_PB=0;
+		}
+		else
+		{
+			if((j == 0) && (k != 0) && (k != 16))
+			{
+				
+				// ³]©w¸ê®Æ½u¤è¦V¬°¿é¥X¡A¨Ó³]©w¤C¬qÅã¥Ü¾¹
+				LPC_GPIO1-> DIR  |=  0xF00;
+	
+				LPC_GPIO3-> DATA = 0x000;
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº¤d¦ì¼Æ
+				LPC_GPIO1-> DATA = (a << 8);
+				LPC_GPIO3-> DATA = 0x020;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+			
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº¦Ê¦ì¼Æ
+				k = k % 8;
+				LPC_GPIO1-> DATA = ((b) << 8);
+				LPC_GPIO3-> DATA = 0x024;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+	
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº¤Q¦ì¼Æ
+				k = k % 4;  			
+				LPC_GPIO1-> DATA = ((c) << 8);
+				LPC_GPIO3-> DATA = 0x030;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+
+				// Åã¥Ü¤C¬qÅã¥Ü¾¹ªº­Ó¦ì¼Æ
+				k = k % 2;				
+				LPC_GPIO1-> DATA = ((d) << 8);
+				LPC_GPIO3-> DATA = 0x034;
+				Delay_ms(10);
+				LPC_GPIO3-> DATA = 0x000;
+
+				G_DATA_PB = 0;
+			}
+			else
+				G_DATA_PB = j;
+
+		} 
+	}
+
+}
+void F_ST7920_IO_Init(void)
+{
+	// ¼È¦s¾¹°t¸m¬°¤@¯ë¥Î³~¨Ï¥Î
+    //LPC_IOCON->PIO0_4 =  0x0100;
+    //LPC_IOCON->PIO0_5 =  0x0100;
+	// D_ST7920_E		
+	LPC_IOCON->R_PIO1_0 |= 0x0001;
+	// D_ST7920_RW
+	//LPC_IOCON->PIO1_4 =  0xD0;
+	// D_ST7920_RES		
+	//LPC_IOCON->PIO2_0 =  0xD0;
+
+	// ¼È¦s¾¹³]¸m¤è¦V
+	LPC_GPIO0->DIR	|=  (D_ST7920_RS + D_ST7920_DB);
+	LPC_GPIO1->DIR  |=  (D_ST7920_E + D_ST7920_RW);
+	LPC_GPIO2->DIR  |=  D_ST7920_RES;
+	
+	LPC_GPIO0->DATA	|=  (D_ST7920_RS + D_ST7920_DB);
+	LPC_GPIO1->DATA |=  (D_ST7920_E + D_ST7920_RW);
+	LPC_GPIO2->DATA |=  D_ST7920_RES;
+
+	LPC_GPIO0->DATA	&=  ~(D_ST7920_RS + D_ST7920_DB);
+	LPC_GPIO1->DATA &=  ~(D_ST7920_E + D_ST7920_RW);
+	LPC_GPIO2->DATA &=  ~D_ST7920_RES;	  
 }
 
-/******************************************************************
- **	ADC_Init (void)
- **	ªì©l¤ÆADC
-******************************************************************/
-void F_ADC_Init( uint32 ADC_Clk )
+//******************************************************************************
+//  F_ST7920_Init
+//******************************************************************************
+void F_ST7920_Init(void)
 {
 
-  // 0=¸T¯à¶i¤J¹q·½¤U­°®É¡A®É¯ß°e¤JADC 
-  LPC_SYSCON->PDRUNCFG &= ~(0x1<<4);
+	// LCM ¬ÛÃö¼È¦s¾¹³]©w
+	F_ST7920_IO_Init();
 
-  /* Enable AHB clock to the ADC. */
-  LPC_SYSCON->SYSAHBCLKCTRL |= (1<<13);
+	// ST7920 RESET
+	D_ST7920_RES_EN;
+  	Delay_ms(50);
+	D_ST7920_RES_DN;
 
-  LPC_ADC->CR = ((((SystemFrequency/LPC_SYSCON->SYSAHBCLKDIV)/ADC_Clk-1)<<8)|
-  (0 << 16) | 		// BURST=0,¥Ñ³nÅé±±¨î±Ò°Ê 
-  (0 << 17) |  		// CLKS =0,11 clocks/10 bits <--Burst ¼Ò¦¡¤U¦³¥Î
-  (0 << 24) |  		// START=0,A/DÂà´«°±¤î
-  (0 << 27));		// EDGE =0,CAP/MAT¸}«H¸¹­t½tÄ²Âà´«
+    
+	// LCM ªì¨Ï¤Æ³]©w
+	// 8-bit mode
+	F_ST7920_IR_WR(0x0030);	// 8-Bit Mode
+	Delay_ms(10);
+	F_ST7920_IR_WR(0x0004);	// 8-Bit Mode
+	Delay_ms(10);
 
-  return;
+	F_ST7920_IR_WR(0x000C);	// Display ON, C On, B Onõ
+	Delay_ms(10);
+
+	F_ST7920_IR_WR(0x0001);	// Display Clear
+	Delay_ms(50);
+	F_ST7920_IR_WR(0x0002);	// Return Home
+	Delay_ms(1);
+	F_ST7920_IR_WR(0x0080);	// Entry Mode Set
+	Delay_ms(1);
 }
-/************************************************************
- * ¨ç¦¡¦W	¡GF_UART_Init(uint32_t baudrate)
- * ¥\¯à		¡GUART ªì¨Ï¤Æ¤ÎÀj²v³]©w
- * Note: UART ¸}¦ì¥²¶·¦bUART®É¯ß­P¯à«e³]©w§¹¦¨ (LPC111x/101/201/301)
- * 		 UART/SPI/WDT ¨ã¦³¿W¥ßªº®É¯ß°£ÀW¾¹
-*************************************************************/
-void  F_UART_Init(uint32_t baudrate)
+void F_ST7920_IR_WR(unsigned int CMD)
 {
-  uint32_t Fdiv;
-  uint32_t regVal;
+	D_ST7920_E_DN;
+	Delay_ms(1);
 
-  
-  NVIC_DisableIRQ(UART_IRQn);
+	D_ST7920_RS_IR;
+	D_ST7920_RW_WR;
 
-  /* UART I/O ¼È¦s¾¹ ³]©w 	  */
-  LPC_IOCON->PIO1_6 &= ~0x07;    
-  LPC_IOCON->PIO1_6 |= 0x01;     // UART RXD FUNC¥\¯à³]©w 
-  LPC_IOCON->PIO1_7 &= ~0x07;	
-  LPC_IOCON->PIO1_7 |= 0x01;     // UART TXD FUNC¥\¯à³]©w
+	D_ST7920_E_EN;
 
-  /* ¶}±ÒUART ®É¯ß¤Î³]©w¶Ç¿é®æ¦¡ */
-  LPC_SYSCON->SYSAHBCLKCTRL |= (1<<12);	   //  °Ñ¦Ò	SYSAHBCLKCTRL,¼È¦s¾¹Bit 12
-  // UARTCLKDIV UART °£ÀW¾¹³]©w
-  LPC_SYSCON->UARTCLKDIV = 0x1;     // divided by 1 
-  // ³]©w UART ¶Ç¿é®æ¦¡
-  // U0LCR[1:0]	- 0x3 ªí8-bits
-  // U0LCR[2]	- 0x0 ªí1 stop bit
-  // U0LCR[3]	- 0x0 ªíno Parity
-  // U0LCR[7]¬°DLAB(Divisor Latch AccessBit) =1, Write Only
-  LPC_UART->LCR = 0x83;             /* 8 bits, no Parity, 1 Stop bit */
+	LPC_GPIO0->DATA	= (LPC_GPIO0->DATA & 0xFC03) + (CMD << 2);
+	
+	Delay_ms(1);
 
-  /* ­pºâ Baud Rate ©Ò»Ýªº°Ñ¼Æ*/
-  regVal = LPC_SYSCON->UARTCLKDIV;										
-  Fdiv = (((SystemFrequency*LPC_SYSCON->SYSAHBCLKDIV)/regVal)/16)/baudrate ;	/*baud rate */
-  LPC_UART->DLM = Fdiv / 256;							
-  LPC_UART->DLL = Fdiv % 256;
-  // U0LCR[7]¬°DLAB(Divisor Latch AccessBit) =0, Read Only
-  LPC_UART->LCR = 0x03;		/* DLAB = 0 */
-
-
-  LPC_UART->FCR = 0x07;		/* Enable and reset TX and RX FIFO. */
-
-  /* Read to clear the line status. */
-  regVal = LPC_UART->LSR;
-
-  /* Ensure a clean start, no data in either TX or RX FIFO. */
-// CodeRed - added parentheses around comparison in operand of &
-  while (( LPC_UART->LSR & (LSR_THRE|LSR_TEMT)) != (LSR_THRE|LSR_TEMT) );
-  while ( LPC_UART->LSR & LSR_RDR )
-  {
-	regVal = LPC_UART->RBR;	/* Dump data from RX FIFO */
-  }
-  /* Enable the UART Interrupt */
-  NVIC_EnableIRQ(UART_IRQn);
- 
-  return;
+	D_ST7920_E_DN;
 }
-/************************************************************
- * ¨ç¦¡¦W	¡GF_UART_SendByte(uint8_t Data)
- * ¥\¯à		¡G¶Ç°e¤@­Óbyte¸ê®Æ
-*************************************************************/
-// ¶Ç°e¤@­Óbyte¸ê®Æ
-void F_UART_SendByte(char Data)
+
+/******************************************************************************
+ *  F_ST7920_DR_WR 
+ *  ¼g¤J¸ê®Æ¦Ü¸ê®Æ¼È¦s¾¹ 
+*******************************************************************************/
+void F_ST7920_DR_WR(unsigned int DATA)
 {
-  
-  	// µ¥«ÝTX FIFO¬°ªÅ
-  	while ( !(LPC_UART->LSR & LSR_THRE) );
-	// ¼g¤J¦r¤¸¦ÜTX FIFO
-  	LPC_UART->THR = Data;
-  	return;
+	uint32	tmp;
+	D_ST7920_E_DN;
+	Delay_ms(1);
+
+	D_ST7920_RS_DR;
+	D_ST7920_RW_WR;
+
+	D_ST7920_E_EN;
+
+   	tmp = (LPC_GPIO0->DATA & 0xFC03);
+	tmp |= 	  (DATA << 2);
+	Delay_ms(1);
+	LPC_GPIO0->DATA	= tmp;
+	
+	Delay_ms(4);
+
+	D_ST7920_E_DN;
 }
-/************************************************************
- * ¨ç¦¡¦W	¡GF_UART_SendStr(uint8_t *BufferPtr, uint32_t Length)
- * ¥\¯à		¡G¶Ç°e¤@­Ó¦r¦ê¸ê®Æ
-*************************************************************/
-void F_UART_SendStr(char *BufferPtr, uint32_t Length)
-{
-  
-  // ­Y³Ñ¾l¦r¤¸¼Æ¤£¬°0¡A«h¶Ç°e
-  while ( Length != 0 )
-  {
-  	  // µ¥«Ý¶Ç°eFIFO¬°ªÅ
-	  while ( !(LPC_UART->LSR & LSR_THRE) );
-	  // ¼g¤J¦r¤¸¦ÜTX FIFO
-	  LPC_UART->THR = *BufferPtr;
-	  // «ü¼Ð«ü¦V¤U¤@­Ó¦r¤¸
-      BufferPtr++;
-	  // ³Ñ¾l¦r¤¸¼Æ´î1
-      Length--;
-  }
-  return;
-}
+
 
